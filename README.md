@@ -1,12 +1,13 @@
 # Headwind
 
-Dedicated Bluetooth remote for HEADWIND 7AE9, built with Kotlin and Jetpack Compose.
+Dedicated Bluetooth remote for Wahoo KICKR HEADWIND fans, built with Kotlin and Jetpack Compose.
 
 ## Use the remote
 
-Open Headwind and allow Nearby devices once. It finds and connects to your fan
-automatically, without pairing it in Android's Bluetooth settings. The portrait
-screen is three large touch targets:
+Open Headwind, allow Nearby devices once, and choose your fan from the nearby
+HEADWIND list. The app remembers the verified connection and reconnects to that
+fan automatically next time, without pairing in Android's Bluetooth settings.
+The portrait screen has three large touch targets:
 
 - **+** starts at 10%, then steps through 20%, 40%, 60%, 80%, and 100%.
 - **−** selects the next lower step; below 10% it stops the fan.
@@ -20,9 +21,17 @@ never starts the fan. Leaving the app releases Bluetooth and preserves the fan's
 current setting. A lost connection discards pending actions instead of replaying
 them later. Reconnection retries automatically while the app is visible.
 
+The small cog in the upper-right corner opens **Fan settings**. It shows the
+remembered fan and nearby fans, with **Scan again** and **Forget fan** controls.
+Tap another fan to switch; switching or forgetting does not change fan speed.
+Discovery lists names beginning with HEADWIND, but automatic reconnection uses
+only the selected Bluetooth address. It never silently switches to a different
+fan with the same name. Selection is saved only after the control service and
+status have been verified. Existing installations keep their remembered fan.
+
 If the fan is not found, close Wahoo or another controller that may hold its BLE
-connection. This app connects only to HEADWIND 7AE9 or its previously verified
-address. It needs no internet access or account. On Android 8–11, Android requires
+connection. If a fan's Bluetooth address changes, select it again in settings.
+The app needs no internet access or account. On Android 8–11, Android requires
 Location permission and Location enabled for BLE scanning; Android 12+ uses
 Nearby devices instead.
 

@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HeadwindProtocolTest {
+    @Test fun discoveryRecognisesOtherHeadwindsButNotUnrelatedDevices() {
+        assertTrue(HeadwindProtocol.isHeadwindName("HEADWIND 1234"))
+        assertTrue(HeadwindProtocol.isHeadwindName("headwind ABCD"))
+        assertFalse(HeadwindProtocol.isHeadwindName("KICKR CORE"))
+        assertFalse(HeadwindProtocol.isHeadwindName(null))
+    }
+
+    @Test fun reconnectRequiresTheSelectedAddressEvenWithIdenticalNames() {
+        val selected = FanDevice("HEADWIND", "AA:BB:CC:DD:EE:01")
+        assertTrue(isSelectedFan("aa:bb:cc:dd:ee:01", selected))
+        assertFalse(isSelectedFan("AA:BB:CC:DD:EE:02", selected))
+        assertFalse(isSelectedFan(selected.address, null))
+    }
+
     @Test fun sixStepsStartAtMinimumAndStopAtMaximum() {
         var speed = 0
         val visited = (1..6).map { speed = HeadwindProtocol.increase(speed); speed }

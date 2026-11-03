@@ -50,6 +50,22 @@ class HeadwindController(context: Context) {
     private var believedSpeed: Int? = null
     private var receiverRegistered = false
     private var lastNotification = 0L
+    private var discoveryRequested = false
+    private var pendingSelection: FanDevice? = null
+    private var scanCallback: ScanCallback? = null
+
+    // Existing installations already stored the verified address. Preserve it on upgrade.
+    var selectedFan by mutableStateOf(preferences.getString("address", null)?.let {
+        if (BluetoothAdapter.checkBluetoothAddress(it)) FanDevice(preferences.getString("name", null) ?: "HEADWIND", it) else null
+    })
+        private set
+    var nearbyFans by mutableStateOf(emptyList<FanDevice>())
+        private set
+    var discovering by mutableStateOf(false)
+        private set
+    var discoveryMessage by mutableStateOf("Search for nearby HEADWIND fans")
+        private set
+    val targetName: String get() = (pendingSelection ?: selectedFan)?.name ?: "HEADWIND"
 
     var state by mutableStateOf(FanUiState())
         private set
@@ -58,8 +74,13 @@ class HeadwindController(context: Context) {
     private enum class Kind { SUBSCRIBE, READ, WRITE }
 
     private val deadline = Runnable { fail("Fan did not respond. Reconnecting…") }
-    private val scanDeadline = Runnable { fail("HEADWIND 7AE9 not found. Retrying…") }
-    private val retry = Runnable { if (active) connect() }
+    private val scanDeadline = Runnable {
+        if (discovering) {
+            stopScan()
+            discoveryMessage = if (nearbyFans.isEmpty()) "No fans found. Check power and close other fan apps, then scan again." else "Choose a fan to remember it"
+        } else fail("$targetName not found. Retrying…")
+    }
+    private val retry = Runnable { if (active) resumeConnection() }
     private val confirmationDeadline = Runnable { fail("Speed was not confirmed. Reconnecting…") }
     private val stopDeadline = Runnable { finishStop() }
     private val heartbeat = object : Runnable {
@@ -76,7 +97,7 @@ class HeadwindController(context: Context) {
             if (!active) return
             if (stopping) return finishStop()
             releaseConnection()
-            connect()
+            resumeConnection()
         }
     }
 
@@ -96,7 +117,7 @@ class HeadwindController(context: Context) {
             ContextCompat.registerReceiver(app, radioReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
             receiverRegistered = true
         }
-        if (gatt == null && !scanning) connect()
+        if (!scanning) resumeConnection()
     }
 
     fun stop() {
@@ -124,6 +145,67 @@ class HeadwindController(context: Context) {
         if (active) connect()
     }
 
+    private fun resumeConnection() {
+        if (discoveryRequested) discoverFans() else connect()
+    }
+
+    fun discoverFans() {
+        discoveryRequested = true
+        if (!active || discovering) return
+        stopScan()
+        nearbyFans = emptyList()
+        if (!checkEnvironment()) {
+            discoveryMessage = when (state.connection) {
+                Connection.PERMISSION -> "Nearby devices permission is needed. Tap Scan again to allow it."
+                Connection.BLUETOOTH_OFF -> "Bluetooth is off. Tap Scan again to turn it on."
+                Connection.LOCATION_OFF -> "Location must be enabled for scanning on this Android version. Tap Scan again."
+                else -> state.message
+            }
+            return
+        }
+        if (gatt == null) state = FanUiState(Connection.NEEDS_SELECTION, message = "Choose a fan, or close settings to reconnect")
+        try {
+            manager.getConnectedDevices(BluetoothProfile.GATT).forEach { device ->
+                device.name?.takeIf(HeadwindProtocol::isHeadwindName)?.let { addNearby(FanDevice(it, device.address)) }
+            }
+            discoveryMessage = "Searching for nearby HEADWIND fans…"
+            beginScan(forDiscovery = true)
+        } catch (_: SecurityException) {
+            discoveryMessage = "Allow Nearby devices to search for fans"
+        } catch (_: IllegalStateException) {
+            discoveryMessage = "Bluetooth is unavailable. Try scanning again."
+        }
+    }
+
+    fun closeDiscovery() {
+        discoveryRequested = false
+        if (discovering) stopScan()
+        if (active) connect()
+    }
+
+    fun selectFan(address: String) {
+        if (!active || state.requestedSpeed != null) return
+        val candidate = nearbyFans.firstOrNull { it.address == address } ?: return
+        releaseConnection()
+        discoveryRequested = false
+        pendingSelection = candidate
+        connect()
+    }
+
+    fun forgetFan() {
+        if (state.requestedSpeed != null) return
+        releaseConnection()
+        pendingSelection = null
+        selectedFan = null
+        preferences.edit().remove("address").remove("name").apply()
+        state = FanUiState(Connection.NEEDS_SELECTION, message = "Choose a fan in settings")
+        discoverFans()
+    }
+
+    private fun addNearby(fan: FanDevice) {
+        nearbyFans = (nearbyFans.filterNot { it.address == fan.address } + fan).sortedWith(compareBy({ it.name }, { it.address }))
+    }
+
     fun increase() {
         if (!state.canControl) return
         val current = state.requestedSpeed ?: state.status!!.let { if (it.isStopped) 0 else it.speed }
@@ -149,21 +231,19 @@ class HeadwindController(context: Context) {
         driveTarget()
     }
 
-    private fun connect() {
-        if (!active || stopping || gatt != null || scanning) return
-        handler.removeCallbacks(retry)
+    private fun checkEnvironment(): Boolean {
         if (!hasPermissions()) {
             state = FanUiState(Connection.PERMISSION, message = "Tap + to allow Nearby devices")
-            return
+            return false
         }
         val bluetooth = adapter
         if (bluetooth == null) {
             state = FanUiState(Connection.UNAVAILABLE, message = "Bluetooth LE is unavailable")
-            return
+            return false
         }
         if (!bluetooth.isEnabled) {
             state = FanUiState(Connection.BLUETOOTH_OFF, message = "Tap + to turn on Bluetooth")
-            return
+            return false
         }
         if (Build.VERSION.SDK_INT < 31) {
             val location = app.getSystemService(LocationManager::class.java)
@@ -171,25 +251,29 @@ class HeadwindController(context: Context) {
                 location.isProviderEnabled(LocationManager.GPS_PROVIDER) || location.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
             if (!enabled) {
                 state = FanUiState(Connection.LOCATION_OFF, message = "Tap + to enable Location for Bluetooth scanning")
-                return
+                return false
             }
         }
+        return true
+    }
+
+    private fun connect() {
+        if (!active || stopping || gatt != null || scanning || discoveryRequested) return
+        handler.removeCallbacks(retry)
+        if (!checkEnvironment()) return
+        if (pendingSelection == null && selectedFan == null) {
+            state = FanUiState(Connection.NEEDS_SELECTION, message = "Tap the cog to choose your fan")
+            return
+        }
         try {
-            // Android may already have a link held by Wahoo. Reuse only our exact named fan.
+            // A remembered address is the identity; another fan with the same name is never substituted.
             val connected = manager.getConnectedDevices(BluetoothProfile.GATT).firstOrNull(::isTarget)
             if (connected != null) {
                 open(connected)
                 return
             }
-            state = FanUiState(Connection.SEARCHING, message = "Finding HEADWIND 7AE9…")
-            val scanner = bluetooth.bluetoothLeScanner ?: return fail("Bluetooth scanner unavailable. Retrying…")
-            scanning = true
-            val filters = mutableListOf(ScanFilter.Builder().setDeviceName(HeadwindProtocol.DEVICE_NAME).build())
-            preferences.getString("address", null)?.let { address ->
-                if (BluetoothAdapter.checkBluetoothAddress(address)) filters += ScanFilter.Builder().setDeviceAddress(address).build()
-            }
-            scanner.startScan(filters, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback)
-            handler.postDelayed(scanDeadline, 12_000)
+            state = FanUiState(Connection.SEARCHING, message = "Finding $targetName…")
+            beginScan(forDiscovery = false)
         } catch (_: SecurityException) {
             releaseConnection()
             state = FanUiState(Connection.PERMISSION, message = "Tap + to allow Nearby devices")
@@ -199,28 +283,52 @@ class HeadwindController(context: Context) {
     }
 
     private fun isTarget(device: BluetoothDevice): Boolean =
-        device.name.equals(HeadwindProtocol.DEVICE_NAME, ignoreCase = true) ||
-            device.address == preferences.getString("address", null)
+        isSelectedFan(device.address, pendingSelection ?: selectedFan)
 
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            handler.post {
-                if (!active || !scanning) return@post
-                try {
-                    if (result.scanRecord?.deviceName.equals(HeadwindProtocol.DEVICE_NAME, true) || isTarget(result.device)) {
+    private fun beginScan(forDiscovery: Boolean) {
+        val scanner = adapter?.bluetoothLeScanner ?: throw IllegalStateException("Scanner unavailable")
+        val callback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                handler.post {
+                    if (!active || !scanning || scanCallback !== this) return@post
+                    try {
+                        val name = result.scanRecord?.deviceName ?: result.device.name
+                        if (forDiscovery) {
+                            if (HeadwindProtocol.isHeadwindName(name)) addNearby(FanDevice(name!!, result.device.address))
+                        } else if (isTarget(result.device)) {
+                            stopScan()
+                            open(result.device)
+                        }
+                    } catch (_: SecurityException) { fail("Bluetooth permission is needed") }
+                }
+            }
+            override fun onScanFailed(errorCode: Int) {
+                handler.post {
+                    if (scanCallback !== this) return@post
+                    if (forDiscovery) {
                         stopScan()
-                        open(result.device)
-                    }
-                } catch (_: SecurityException) { fail("Bluetooth permission is needed") }
+                        discoveryMessage = "Scan failed ($errorCode). Wait a moment and scan again."
+                    } else fail("Bluetooth scan failed ($errorCode). Retrying…")
+                }
             }
         }
-        override fun onScanFailed(errorCode: Int) {
-            handler.post { if (scanning) fail("Bluetooth scan failed ($errorCode). Retrying…") }
+        scanCallback = callback
+        scanning = true
+        discovering = forDiscovery
+        val filters = if (forDiscovery) emptyList() else listOf(
+            ScanFilter.Builder().setDeviceAddress((pendingSelection ?: selectedFan)!!.address).build(),
+        )
+        try {
+            scanner.startScan(filters, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), callback)
+            handler.postDelayed(scanDeadline, 12_000)
+        } catch (error: RuntimeException) {
+            stopScan()
+            throw error
         }
     }
 
     private fun open(device: BluetoothDevice) {
-        state = FanUiState(Connection.CONNECTING, message = "Connecting to HEADWIND 7AE9…")
+        state = FanUiState(Connection.CONNECTING, message = "Connecting to $targetName…")
         Log.i(TAG, "Connecting to target fan")
         gatt = device.connectGatt(app, false, callbacks, BluetoothDevice.TRANSPORT_LE)
         armDeadline(15_000)
@@ -313,8 +421,12 @@ class HeadwindController(context: Context) {
         if (result != BluetoothGatt.GATT_SUCCESS) return fail("Cannot read fan status")
         val status = HeadwindProtocol.status(value)
         if (status == null && state.status == null) return fail("Unrecognised fan status. Retrying…")
-        preferences.edit().putString("address", gatt!!.device.address).apply()
-        state = state.copy(connection = Connection.READY, message = "Connected · HEADWIND 7AE9")
+        val device = gatt!!.device
+        val verified = FanDevice(device.name ?: targetName, device.address)
+        preferences.edit().putString("address", verified.address).putString("name", verified.name).apply()
+        selectedFan = verified
+        pendingSelection = null
+        state = state.copy(connection = Connection.READY, message = "Connected · $targetName")
         receive(value)
         handler.removeCallbacks(heartbeat)
         handler.postDelayed(heartbeat, 4_000)
@@ -344,7 +456,7 @@ class HeadwindController(context: Context) {
         } else if (operation == null && status.matches(target)) {
             believedMode = status.mode
             believedSpeed = status.speed
-            state = state.copy(requestedSpeed = null, message = "Connected · HEADWIND 7AE9")
+            state = state.copy(requestedSpeed = null, message = "Connected · $targetName")
             handler.removeCallbacks(confirmationDeadline)
             if (stopping) finishStop()
         }
@@ -405,10 +517,13 @@ class HeadwindController(context: Context) {
     }
 
     private fun stopScan() {
+        val callback = scanCallback
+        scanCallback = null
         if (scanning) {
             scanning = false
-            try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: SecurityException) { }
+            try { if (callback != null) adapter?.bluetoothLeScanner?.stopScan(callback) } catch (_: SecurityException) { }
         }
+        discovering = false
         handler.removeCallbacks(scanDeadline)
     }
 

@@ -13,14 +13,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.archagexiii.headwind.fan.Connection
 import com.archagexiii.headwind.fan.HeadwindController
 import com.archagexiii.headwind.ui.HeadwindApp
+import com.archagexiii.headwind.ui.FanSettings
 import com.archagexiii.headwind.ui.theme.HeadwindTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var controller: HeadwindController
     private var requestedPermissions = false
+    private var settingsOpen by mutableStateOf(false)
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         controller.start()
     }
@@ -37,6 +42,7 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
         }
         controller = HeadwindController(this)
+        settingsOpen = savedInstanceState?.getBoolean("settingsOpen") ?: (controller.selectedFan == null)
         requestedPermissions = savedInstanceState?.getBoolean("permissionRequested") ?: false
         setContent {
             HeadwindTheme(darkTheme = true) {
@@ -45,7 +51,23 @@ class MainActivity : ComponentActivity() {
                     onIncrease = { act { controller.increase() } },
                     onDecrease = { act { controller.decrease() } },
                     onOff = { act { controller.off() } },
+                    fanName = controller.targetName,
+                    onSettings = { settingsOpen = true; controller.discoverFans() },
                 )
+                if (settingsOpen) {
+                    FanSettings(
+                        selectedFan = controller.selectedFan,
+                        nearbyFans = controller.nearbyFans,
+                        scanning = controller.discovering,
+                        message = controller.discoveryMessage,
+                        connectionMessage = controller.state.message,
+                        busy = controller.state.requestedSpeed != null,
+                        onScan = { actForDiscovery() },
+                        onSelect = { address -> controller.selectFan(address); settingsOpen = false },
+                        onForget = { controller.forgetFan() },
+                        onDismiss = { settingsOpen = false; controller.closeDiscovery() },
+                    )
+                }
             }
         }
     }
@@ -53,6 +75,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.start()
+        if (settingsOpen) controller.discoverFans()
         if (!controller.hasPermissions() && !requestedPermissions) requestBluetoothPermission()
     }
 
@@ -63,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("permissionRequested", requestedPermissions)
+        outState.putBoolean("settingsOpen", settingsOpen)
         super.onSaveInstanceState(outState)
     }
 
@@ -79,7 +103,15 @@ class MainActivity : ComponentActivity() {
             Connection.BLUETOOTH_OFF -> enableBluetooth.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
             Connection.LOCATION_OFF -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
             Connection.READY -> action()
+            Connection.NEEDS_SELECTION -> { settingsOpen = true; controller.discoverFans() }
             else -> controller.retryNow()
+        }
+    }
+
+    private fun actForDiscovery() {
+        when (controller.state.connection) {
+            Connection.PERMISSION, Connection.BLUETOOTH_OFF, Connection.LOCATION_OFF -> act { }
+            else -> controller.discoverFans()
         }
     }
 

@@ -4,7 +4,7 @@ import java.util.UUID
 
 /** Wire format verified against HEADWIND 7AE9; see docs/bluetooth.md. */
 object HeadwindProtocol {
-    const val DEVICE_NAME = "HEADWIND 7AE9"
+    fun isHeadwindName(name: String?): Boolean = name?.trim()?.startsWith("HEADWIND", ignoreCase = true) == true
     val service: UUID = UUID.fromString("a026ee0c-0a7d-4ab3-97fa-f1500f9feb8b")
     val command: UUID = UUID.fromString("a026e038-0a7d-4ab3-97fa-f1500f9feb8b")
     val clientConfig: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -43,13 +43,19 @@ data class FanStatus(val mode: Int, val speed: Int) {
     fun matches(target: Int): Boolean = if (target == 0) isStopped else mode == 4 && speed == target
 }
 
-enum class Connection { PERMISSION, BLUETOOTH_OFF, LOCATION_OFF, SEARCHING, CONNECTING, READY, RETRYING, INACTIVE, UNAVAILABLE }
+data class FanDevice(val name: String, val address: String)
+
+/** Reconnect by identity, never by a shared display name. */
+fun isSelectedFan(address: String, selected: FanDevice?): Boolean =
+    selected != null && address.equals(selected.address, ignoreCase = true)
+
+enum class Connection { PERMISSION, BLUETOOTH_OFF, LOCATION_OFF, NEEDS_SELECTION, SEARCHING, CONNECTING, READY, RETRYING, INACTIVE, UNAVAILABLE }
 
 data class FanUiState(
     val connection: Connection = Connection.INACTIVE,
     val status: FanStatus? = null,
     val requestedSpeed: Int? = null,
-    val message: String = "Connecting to HEADWIND 7AE9…",
+    val message: String = "Choose a HEADWIND in settings",
 ) {
     val canControl: Boolean get() = connection == Connection.READY && status != null
     val displayedSpeed: Int? get() = requestedSpeed ?: status?.speed

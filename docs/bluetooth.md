@@ -16,9 +16,16 @@ was incorporated.
 ## Discovery
 
 The Pixel showed Wahoo holding an LE GATT connection to HEADWIND 7AE9 without
-a normal pairing key. The app discovers the advertised device name, verifies its
-control service, and remembers its address after successful service discovery
-and state reading. Do not require a service UUID in advertising: the community
+a normal pairing key. Discovery lists advertised names beginning with HEADWIND
+(case-insensitive), including any matching fans already connected to Android.
+The user selects a fan, then the app verifies its control service and saves its
+name and address after a successful status read. Subsequent reconnection matches
+only that address, never another fan with the same name. A changed address can
+be selected again through the settings cog. Forget clears both saved fields.
+The former address-only preference is retained and its name populated on the
+next successful connection. Discovery times out after 12 seconds and can be
+restarted manually; reconnect scans retry automatically for the chosen fan.
+Do not require a service UUID in advertising: the community
 implementations report that the control service is not advertised.
 
 Service: `a026ee0c-0a7d-4ab3-97fa-f1500f9feb8b`
@@ -87,9 +94,12 @@ two protocol commands atomic. User-selected steps are 10/20/40/60/80/100%.
 - Unit tests for stepping, off semantics, malformed packets and ACK matching.
 - UI instrumentation uses fake data so it never controls physical hardware.
 
-Five JVM protocol tests and the three-button Compose instrumentation test passed
-on the Pixel 10 Pro (Android 17). Debug build and Android lint passed; dependency
-update notices and the intentionally locked phone orientation remain warnings.
+Protocol, discovery identity and Compose UI tests cover the controller's inputs
+and settings actions. The Pixel 10 Pro (Android 17) was also used to verify
+upgrade retention, forgetting, discovery without a saved fan, selection, and
+automatic reconnection after process restart. These discovery operations sent
+no speed or power commands. Only one physical HEADWIND was available; duplicate
+names and different addresses are covered with synthetic test data.
 
 The protocol is unofficial and firmware-specific. No firmware updates, factory
 resets, sensor-pairing changes, or normal Bluetooth bonds are performed.
