@@ -1,0 +1,21 @@
+# Local build state and IDE preferences
+.gradle/
+.kotlin/
+.idea/
+*.iml
+**/build/
+local.properties
+.DS_Store
+Thumbs.db
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Signing material and local secrets
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+!.env.example
+google-services.json
