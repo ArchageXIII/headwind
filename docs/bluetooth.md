@@ -3,7 +3,7 @@
 ## Sources
 
 Protocol facts were cross-checked against these community implementations, then
-verified with the actual HEADWIND 7AE9 on 3 November 2026. The Android controller
+verified with a physical HEADWIND on 3 November 2026. The Android controller
 in this repository is an independent implementation; no third-party app source
 was incorporated.
 
@@ -15,7 +15,7 @@ was incorporated.
 
 ## Discovery
 
-The Pixel showed Wahoo holding an LE GATT connection to HEADWIND 7AE9 without
+The test phone showed Wahoo holding an LE GATT connection to the fan without
 a normal pairing key. Discovery lists advertised names beginning with HEADWIND
 (case-insensitive), including any matching fans already connected to Android.
 The user selects a fan, then the app verifies its control service and saves its

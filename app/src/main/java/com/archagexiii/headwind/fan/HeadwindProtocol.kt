@@ -2,7 +2,7 @@ package com.archagexiii.headwind.fan
 
 import java.util.UUID
 
-/** Wire format verified against HEADWIND 7AE9; see docs/bluetooth.md. */
+/** Wire format verified against a physical HEADWIND; see docs/bluetooth.md. */
 object HeadwindProtocol {
     fun isHeadwindName(name: String?): Boolean = name?.trim()?.startsWith("HEADWIND", ignoreCase = true) == true
     val service: UUID = UUID.fromString("a026ee0c-0a7d-4ab3-97fa-f1500f9feb8b")

@@ -19,3 +19,11 @@ keystore.properties
 .env.*
 !.env.example
 google-services.json
+*.p12
+*.pfx
+*.pem
+*.key
+*.apk
+*.aab
+*.log
+*.hprof
