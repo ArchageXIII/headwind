@@ -2,7 +2,12 @@
 
 A simple Android remote for cyclists who want to control a **Wahoo KICKR HEADWIND**
 without navigating a larger training app. Open it, choose your fan once, and use
-three big buttons. It remembers your fan and reconnects when you return.
+two big speed buttons and a small power toggle. It remembers your fan and
+reconnects when you return.
+
+<img src="docs/images/headwind.png" alt="Headwind Android app with a small power toggle, large plus and minus buttons, and a non-interactive 40% fan speed display" width="300">
+
+*App screenshot with an example fan connection.*
 
 **An independent community project, not affiliated with, endorsed by, or supported
 by Wahoo.** Please read the [disclaimer](#disclaimer) before trying it.
@@ -11,13 +16,17 @@ by Wahoo.** Please read the [disclaimer](#disclaimer) before trying it.
 
 - **+** starts the fan at 10%, then steps through 20%, 40%, 60%, 80%, and 100%.
 - **−** reduces the speed by one step. Below 10%, it stops the fan.
-- **OFF** stops the fan but leaves Bluetooth available. Press + to restart at 10%.
+- The round **power toggle at the top left** starts the fan at 20%, or stops it
+  while leaving Bluetooth available.
 - The small **settings cog** lets you find, select, switch, or forget a fan.
 
-The three controls fill a portrait screen, which stays awake while the app is
-open. The middle control shows the speed and connection state. Reopening the app
-does not start the fan. Closing the app leaves its current speed unchanged.
-OFF is standby, **not disconnection from mains power**.
+The + and − buttons occupy the top and middle thirds of a portrait screen and
+give a haptic tick when tapped (subject to the phone's haptic settings). The
+bottom third shows a large speed percentage and the connected fan. It has no
+touch actions, leaving room to swipe up to go Home without changing the fan.
+The screen stays awake while the app is open. Reopening does not start the fan;
+closing, backgrounding or losing focus does not stop it. Power off is standby,
+**not disconnection from mains power**.
 
 There are no accounts, ads, analytics, or internet permission in the app. The
 selected fan's name and Bluetooth address are stored on your phone. It connects
@@ -114,9 +123,10 @@ phone, or changing OEM unlocking. See [Android's USB setup instructions](https:/
    allow Location and turn Location on for discovery; the app does not read GPS.
 3. Choose your fan from the list. If several are nearby, check its name. Settings
    also shows the end of each Bluetooth address to distinguish identical names.
-4. Check that connecting has left the fan's speed unchanged. Press +, check the
-   low setting, try −, and check that OFF stops it. If control fails, use the
-   physical controls or disconnect power safely; the app is not an emergency stop.
+4. Check that connecting has left the fan's speed unchanged. Toggle power on,
+   check the 20% setting, try + and −, and check that toggling power off stops it.
+   If control fails, use the physical controls or disconnect power safely; the
+   app is not an emergency stop.
 5. Close and reopen the app to check that it remembers your selection. It will
    retry that fan, rather than silently substitute another fan with the same name.
 6. Disconnect USB, turn USB debugging off, and revoke debugging authorizations

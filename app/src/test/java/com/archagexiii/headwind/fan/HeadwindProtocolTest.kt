@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HeadwindProtocolTest {
+    @Test fun powerToggleStartsAtTwentyAndUsesPendingIntent() {
+        val stopped = FanUiState(Connection.READY, FanStatus(1, 0))
+        assertEquals(20, stopped.toggledPowerSpeed)
+        assertEquals(0, stopped.copy(requestedSpeed = 20).toggledPowerSpeed)
+        val running = FanUiState(Connection.READY, FanStatus(4, 60))
+        assertEquals(0, running.toggledPowerSpeed)
+        assertEquals(20, running.copy(requestedSpeed = 0).toggledPowerSpeed)
+        assertEquals(0, FanUiState(Connection.READY, FanStatus(2, 0)).toggledPowerSpeed)
+        assertEquals(20, FanUiState(Connection.READY, FanStatus(5, 0)).toggledPowerSpeed)
+    }
+
     @Test fun discoveryRecognisesOtherHeadwindsButNotUnrelatedDevices() {
         assertTrue(HeadwindProtocol.isHeadwindName("HEADWIND 1234"))
         assertTrue(HeadwindProtocol.isHeadwindName("headwind ABCD"))

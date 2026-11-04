@@ -81,6 +81,9 @@ set the speed before manual mode is rejected. The app therefore sends the desire
 speed immediately after the manual acknowledgement, without a fixed delay. A
 brief firmware-level 25% transition may still occur; the app cannot make these
 two protocol commands atomic. User-selected steps are 10/20/40/60/80/100%.
+The top-left power toggle starts at 20%; + from stopped still starts at 10%.
+Power state follows the pending request while a command is in flight, so a
+second toggle can cancel an in-progress start rather than start it again.
 
 ## Validation
 
@@ -100,6 +103,18 @@ upgrade retention, forgetting, discovery without a saved fan, selection, and
 automatic reconnection after process restart. These discovery operations sent
 no speed or power commands. Only one physical HEADWIND was available; duplicate
 names and different addresses are covered with synthetic test data.
+
+Version 0.4.0 was checked on the same phone and fan on 4 November 2026:
+
+- The small power toggle started at 20%; + raised it to 40% and − returned to 20%.
+- Tapping the bottom speed display sent no command. UI tests also check that
+  taps and upward swipes there dispatch no control action.
+- Swiping Home, opening the notification shade, force-stopping the app and
+  reopening left the fan at 20%. Logs showed no motor commands during those
+  lifecycle checks, and the reconnected fan reported 20% in manual mode.
+- Only an explicit tap on the power toggle sent standby; the fan confirmed stopped.
+- UI tests verify that + and − each request a haptic tick and that the power
+  and settings controls do not trigger the large + button beneath them.
 
 The protocol is unofficial and firmware-specific. No firmware updates, factory
 resets, sensor-pairing changes, or normal Bluetooth bonds are performed.

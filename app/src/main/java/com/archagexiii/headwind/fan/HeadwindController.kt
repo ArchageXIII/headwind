@@ -121,6 +121,7 @@ class HeadwindController(context: Context) {
     }
 
     fun stop() {
+        // Activity lifecycle only releases Bluetooth; never request standby here.
         // Finish an already requested mode/speed pair if Home is pressed between
         // its two writes. Do not scan, reconnect, or accept new requests in this grace period.
         if (state.requestedSpeed != null && gatt != null) {
@@ -218,8 +219,8 @@ class HeadwindController(context: Context) {
         request(HeadwindProtocol.decrease(current))
     }
 
-    fun off() {
-        if (state.canControl) request(0)
+    fun togglePower() {
+        if (state.canControl) request(state.toggledPowerSpeed)
     }
 
     private fun request(target: Int) {

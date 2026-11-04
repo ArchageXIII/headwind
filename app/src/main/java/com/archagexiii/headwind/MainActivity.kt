@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
                     state = controller.state,
                     onIncrease = { act { controller.increase() } },
                     onDecrease = { act { controller.decrease() } },
-                    onOff = { act { controller.off() } },
+                    onTogglePower = { act { controller.togglePower() } },
                     fanName = controller.targetName,
                     onSettings = { settingsOpen = true; controller.discoverFans() },
                 )

@@ -59,4 +59,7 @@ data class FanUiState(
 ) {
     val canControl: Boolean get() = connection == Connection.READY && status != null
     val displayedSpeed: Int? get() = requestedSpeed ?: status?.speed
+    // Sensor modes remain powered on even while a sensor temporarily requests no airflow.
+    val isPoweredOn: Boolean get() = requestedSpeed?.let { it > 0 } ?: (status?.isStopped == false)
+    val toggledPowerSpeed: Int get() = if (isPoweredOn) 0 else 20
 }
